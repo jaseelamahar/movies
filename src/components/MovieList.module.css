@@ -1,0 +1,11 @@
+.movies-list {
+    list-style: none;
+    padding: 0;
+  }
+  
+  .movie {
+    margin: 1rem 0;
+    padding: 1rem;
+    border: 1px solid #ccc;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.26);
+  }
