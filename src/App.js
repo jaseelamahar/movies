@@ -1,33 +1,34 @@
-import React,{useState,useEffect} from 'react';
+import React,{useState,useEffect,useCallback,useMemo} from 'react';
 import MovieList from './components/MovieList';
  
 
 function App() {
   const [movies, setMovies] = useState([]);
   const [isLoading,setIsLoading]=useState(false);
-  const [error,setError]=useState(false);
+  const [error,setError]=useState(null);
   const [retryInterval, setRetryInterval] = useState(null);
   const[isRetrying,setIsRetrying]=useState(false);
 
-  async function fetchMoviesHandler() {
+
+  const fetchMoviesHandler = useCallback(async () => {
     setIsLoading(true);
     setError(null);
     try{
-      const response = await fetch("https://swapi.dev/api/filmc/");
+      const response = await fetch("https://swapi.dev/api/films/");
       
       if(!response.ok){
    throw new Error(`something went wrong...Retrying`)
       }
       const data = await response.json();
 
-      const transformedMovies = data.results.map(movieData => {
-        return {
+      const transformedMovies = data.results.map(movieData =>({
+        
           id: movieData.episode_id,
           title: movieData.title,
           openingText: movieData.opening_crawl,
-          releaseDate: movieData.release_date,
-        };
-      });
+          releaseDate: movieData.release_date
+        
+      }));
       setMovies(transformedMovies);
       
    // Clear retry interval when the fetch is successful
@@ -48,7 +49,17 @@ function App() {
 }
 
 setIsLoading(false);
-}
+},[retryInterval]);
+
+//fetch movies when component loads,no need button click
+useEffect(() => {
+  fetchMoviesHandler();
+}, [fetchMoviesHandler]);
+
+//memoize movielist to avoid unnecessary rerenders
+const movieListMemo = useMemo(() => {
+  return <MovieList movies={movies} />;
+}, [movies]);
 
 // Cancel retry mechanism when the user clicks "Cancel"
 function cancelRetryHandler() {
@@ -71,13 +82,8 @@ return () => {
 
   return (
     <React.Fragment>
-      <section style={{ display: "flex", justifyContent: "center" }}>
-        <button onClick={fetchMoviesHandler} style={{ border: "1px solid black", color: "brown", fontSize: "20px" }}>
-          Fetch movies
-        </button>
-      </section>
       <section>
-       {  !isLoading && movies.length>0 &&< MovieList movies={movies} />}
+       {  !isLoading && movies.length>0 && movieListMemo }
        {!isLoading  && error && <p>{error}</p>}
        {isLoading && <p>Loading...</p>}
        {isRetrying && (
