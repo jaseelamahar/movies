@@ -4,90 +4,133 @@ import MovieList from './components/MovieList';
 
 function App() {
   const [movies, setMovies] = useState([]);
-  const [isLoading,setIsLoading]=useState(false);
-  const [error,setError]=useState(null);
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState(null);
   const [retryInterval, setRetryInterval] = useState(null);
-  const[isRetrying,setIsRetrying]=useState(false);
+  const [isRetrying, setIsRetrying] = useState(false);
 
+  const [newMovie, setNewMovie] = useState({
+    title: "",
+    openingText: "",
+    releaseDate: "",
+  });
 
   const fetchMoviesHandler = useCallback(async () => {
     setIsLoading(true);
     setError(null);
-    try{
+    try {
       const response = await fetch("https://swapi.dev/api/films/");
-      
-      if(!response.ok){
-   throw new Error(`something went wrong...Retrying`)
+      if (!response.ok) {
+        throw new Error(`Something went wrong...Retrying`);
       }
       const data = await response.json();
-
-      const transformedMovies = data.results.map(movieData =>({
-        
-          id: movieData.episode_id,
-          title: movieData.title,
-          openingText: movieData.opening_crawl,
-          releaseDate: movieData.release_date
-        
+      const transformedMovies = data.results.map((movieData) => ({
+        id: movieData.episode_id,
+        title: movieData.title,
+        openingText: movieData.opening_crawl,
+        releaseDate: movieData.release_date,
       }));
       setMovies(transformedMovies);
-      
-   // Clear retry interval when the fetch is successful
-   if (retryInterval) {
-    clearInterval(retryInterval);
-    setRetryInterval(null);  // Reset the retryInterval state
-    setIsRetrying(false);    // Stop retrying when successful
+
+      if (retryInterval) {
+        clearInterval(retryInterval);
+        setRetryInterval(null);
+        setIsRetrying(false);
+      }
+    } catch (error) {
+      setError(error.message);
+      if (!retryInterval) {
+        const intervalId = setInterval(fetchMoviesHandler, 5000);
+        setRetryInterval(intervalId);
+        setIsRetrying(true);
+      }
+    }
+    setIsLoading(false);
+  }, [retryInterval]);
+
+  useEffect(() => {
+    fetchMoviesHandler();
+  }, [fetchMoviesHandler]);
+
+  const movieListMemo = useMemo(() => {
+    return <MovieList movies={movies} />;
+  }, [movies]);
+
+  function cancelRetryHandler() {
+    if (retryInterval) {
+      clearInterval(retryInterval);
+      setRetryInterval(null);
+      setIsRetrying(false);
+    }
   }
-} catch (error) {
-  setError(error.message);
 
-  // If there's no active retry interval, start one
-  if (!retryInterval) {
-    const intervalId = setInterval(fetchMoviesHandler, 5000);  // Retry every 5 seconds
-    setRetryInterval(intervalId);  // Store the interval ID
-    setIsRetrying(true);           // Mark as retrying
-  }
-}
+  useEffect(() => {
+    return () => {
+      if (retryInterval) {
+        clearInterval(retryInterval);
+      }
+    };
+  }, [retryInterval]);
 
-setIsLoading(false);
-},[retryInterval]);
+  // Handle input changes for the form
+  const inputChangeHandler = (event) => {
+    const { name, value } = event.target;
+    setNewMovie((prevMovie) => ({ ...prevMovie, [name]: value }));
+  };
 
-//fetch movies when component loads,no need button click
-useEffect(() => {
-  fetchMoviesHandler();
-}, [fetchMoviesHandler]);
+  // Handle form submission
+  const addMovieHandler = (event) => {
+    event.preventDefault();
+    console.log("New Movie Object:", newMovie);
 
-//memoize movielist to avoid unnecessary rerenders
-const movieListMemo = useMemo(() => {
-  return <MovieList movies={movies} />;
-}, [movies]);
+    // Optionally update movies array
+    setMovies((prevMovies) => [
+      ...prevMovies,
+      { id: Math.random().toString(), ...newMovie },
+    ]);
 
-// Cancel retry mechanism when the user clicks "Cancel"
-function cancelRetryHandler() {
-if (retryInterval) {
-  clearInterval(retryInterval);   // Stop the retry interval
-  setRetryInterval(null);         // Clear the state
-  setIsRetrying(false);           // Mark as not retrying
-}
-}
-
-// Cleanup interval on component unmount to avoid memory leaks
-useEffect(() => {
-return () => {
-  if (retryInterval) {
-    clearInterval(retryInterval);  // Clean up the retry interval if it's still running
-  }
-};
-}, [retryInterval]);
-     
+    // Reset form
+    setNewMovie({ title: "", openingText: "", releaseDate: "" });
+  };
 
   return (
     <React.Fragment>
       <section>
-       {  !isLoading && movies.length>0 && movieListMemo }
-       {!isLoading  && error && <p>{error}</p>}
-       {isLoading && <p>Loading...</p>}
-       {isRetrying && (
-          <button onClick={cancelRetryHandler} style={{ marginTop: '10px', color: 'red' }}>
+        <form onSubmit={addMovieHandler}>
+          <input
+            type="text"
+            name="title"
+            placeholder="Title"
+            value={newMovie.title}
+            onChange={inputChangeHandler}
+            required
+          />
+          <textarea
+            name="openingText"
+            placeholder="Opening Text"
+            value={newMovie.openingText}
+            onChange={inputChangeHandler}
+            required
+          ></textarea>
+          <input
+            type="date"
+            name="releaseDate"
+            value={newMovie.releaseDate}
+            onChange={inputChangeHandler}
+            required
+          />
+          <button type="submit">Add Movies</button>
+        </form>
+      </section>
+      <section>
+        {!isLoading && movies.length > 0 && movieListMemo}
+        {!isLoading && error && <p>{error}</p>}
+        {isLoading && <p>Loading...</p>}
+        {isRetrying && (
+          <button
+            onClick={cancelRetryHandler}
+            style={{ marginTop: "10px", color: "red" }}
+          >
             Cancel Retry
           </button>
         )}
