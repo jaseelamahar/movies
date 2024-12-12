@@ -1,69 +1,62 @@
-import React,{useState,useEffect,useCallback,useMemo} from 'react';
-import MovieList from './components/MovieList';
- 
+import React, { useState, useEffect, useCallback } from "react";
+import MoviesList from "./components/MovieList";
+import AddMovie from "./components/AddMovie";
+import Loader from "./components/Loader";
+import "./App.css";
 
 function App() {
   const [movies, setMovies] = useState([]);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState(null);
   const [retryInterval, setRetryInterval] = useState(null);
-  const [isRetrying, setIsRetrying] = useState(false);
 
-  const [newMovie, setNewMovie] = useState({
-    title: "",
-    openingText: "",
-    releaseDate: "",
-  });
-
-  const fetchMoviesHandler = useCallback(async () => {
+  // Function to fetch movies
+  const fetchMovies = useCallback(async () => {
     setIsLoading(true);
     setError(null);
-    try {
-      const response = await fetch("https://swapi.dev/api/films/");
-      if (!response.ok) {
-        throw new Error(`Something went wrong...Retrying`);
-      }
-      const data = await response.json();
-      const transformedMovies = data.results.map((movieData) => ({
-        id: movieData.episode_id,
-        title: movieData.title,
-        openingText: movieData.opening_crawl,
-        releaseDate: movieData.release_date,
-      }));
-      setMovies(transformedMovies);
 
-      if (retryInterval) {
-        clearInterval(retryInterval);
-        setRetryInterval(null);
-        setIsRetrying(false);
+    try {
+      const response = await fetch(
+        "https://react-http-9b891-default-rtdb.firebaseio.com//movies.json"
+      );
+
+      if (!response.ok) {
+        throw new Error("Something went wrong....Retrying");
       }
+
+      const data = await response.json();
+      const loadedMovies = [];
+
+      for (const key in data) {
+        loadedMovies.push({
+          id: key,
+          title: data[key].title,
+          openingText: data[key].openingText,
+          releaseDate: data[key].releaseDate,
+        });
+      }
+
+      setMovies(loadedMovies);
+      setError(null);
+      clearInterval(retryInterval);
     } catch (error) {
       setError(error.message);
+
       if (!retryInterval) {
-        const intervalId = setInterval(fetchMoviesHandler, 5000);
+        const intervalId = setInterval(fetchMovies, 5000);
         setRetryInterval(intervalId);
-        setIsRetrying(true);
       }
     }
+
     setIsLoading(false);
   }, [retryInterval]);
 
+  // Initial fetch on component mount
   useEffect(() => {
-    fetchMoviesHandler();
-  }, [fetchMoviesHandler]);
+    fetchMovies();
+  }, [fetchMovies]);
 
-  const movieListMemo = useMemo(() => {
-    return <MovieList movies={movies} />;
-  }, [movies]);
-
-  function cancelRetryHandler() {
-    if (retryInterval) {
-      clearInterval(retryInterval);
-      setRetryInterval(null);
-      setIsRetrying(false);
-    }
-  }
-
+  // Clean up retryInterval on component unmount
   useEffect(() => {
     return () => {
       if (retryInterval) {
@@ -72,68 +65,68 @@ function App() {
     };
   }, [retryInterval]);
 
-  // Handle input changes for the form
-  const inputChangeHandler = (event) => {
-    const { name, value } = event.target;
-    setNewMovie((prevMovie) => ({ ...prevMovie, [name]: value }));
-  };
+  // Handler to cancel retry
+  function cancelRetryHandler() {
+    if (retryInterval) {
+      clearInterval(retryInterval);
+      setRetryInterval(null);
+      setIsLoading(false);
+      setError("Retry cancelled by user.");
+    }
+  }
 
-  // Handle form submission
-  const addMovieHandler = (event) => {
-    event.preventDefault();
-    console.log("New Movie Object:", newMovie);
+  // Handler to add a new movie
+  async function addMovieHandler(movie) {
+    const response = await fetch(
+      "https://react-http-9b891-default-rtdb.firebaseio.com//movies.json",
+      {
+        method: "POST",
+        body: JSON.stringify(movie),
+        headers: {
+          "Content-Type": "application/json",
+        },
+      }
+    );
+    const data = await response.json();
+    console.log(data);
+  }
 
-    // Optionally update movies array
-    setMovies((prevMovies) => [
-      ...prevMovies,
-      { id: Math.random().toString(), ...newMovie },
-    ]);
+  // Handler to delete a movie
+  async function deleteMovieHandler(movieId) {
+    const response = await fetch(
+      `https://react-http-9b891-default-rtdb.firebaseio.com//${movieId}.json`,
+      {
+        method: "DELETE",
+      }
+    );
 
-    // Reset form
-    setNewMovie({ title: "", openingText: "", releaseDate: "" });
-  };
+    if (!response.ok) {
+      setError("Failed to delete the movie.");
+      return;
+    }
+
+    setMovies((prevMovies) =>
+      prevMovies.filter((movie) => movie.id !== movieId)
+    );
+  }
 
   return (
     <React.Fragment>
       <section>
-        <form onSubmit={addMovieHandler}>
-          <input
-            type="text"
-            name="title"
-            placeholder="Title"
-            value={newMovie.title}
-            onChange={inputChangeHandler}
-            required
-          />
-          <textarea
-            name="openingText"
-            placeholder="Opening Text"
-            value={newMovie.openingText}
-            onChange={inputChangeHandler}
-            required
-          ></textarea>
-          <input
-            type="date"
-            name="releaseDate"
-            value={newMovie.releaseDate}
-            onChange={inputChangeHandler}
-            required
-          />
-          <button type="submit">Add Movies</button>
-        </form>
+        <AddMovie onAddMovie={addMovieHandler} />
       </section>
       <section>
-        {!isLoading && movies.length > 0 && movieListMemo}
-        {!isLoading && error && <p>{error}</p>}
-        {isLoading && <p>Loading...</p>}
-        {isRetrying && (
-          <button
-            onClick={cancelRetryHandler}
-            style={{ marginTop: "10px", color: "red" }}
-          >
-            Cancel Retry
-          </button>
+        <button onClick={fetchMovies}>Fetch Movies</button>
+        {retryInterval && (
+          <button onClick={cancelRetryHandler}>Cancel Retry</button>
         )}
+      </section>
+      <section>
+        {!isLoading && movies.length > 0 && (
+          <MoviesList movies={movies} onDeleteMovie={deleteMovieHandler} />
+        )}
+        {!isLoading && error && <p>{error}</p>}
+        {isLoading && <Loader />}
       </section>
     </React.Fragment>
   );

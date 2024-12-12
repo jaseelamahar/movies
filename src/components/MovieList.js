@@ -12,6 +12,7 @@ const MoviesList = (props) => {
           title={movie.title}
           releaseDate={movie.releaseDate}
           openingText={movie.openingText}
+          onDeleteMovie={props.onDeleteMovie}
       
         />
       ))}
